@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.signal import get_window
 from math import fmod, pi, floor, cos, sin
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, find_peaks_cwt
 def build_dft_rescale_lookup(n_bins, shift_factor):
     """
     Build lookup table from DFT bins to rescaled bins.
@@ -33,7 +33,7 @@ def dft_rescale(x, n_bins, shift_idx, max_bin, phase_vocoder):
     X = np.fft.rfft(x)
     Y = np.zeros(n_bins, dtype=np.complex)
     max_bin = min(max_bin, len(X))
-    Y[shift_idx[range(max_bin)]] = X[range(max_bin)]
+    Y[shift_idx[range(max_bin)]] += X[range(max_bin)]
     #Y[shift_idx[0]] = X[0]
     #parity = (len(X) % 2 == 0)
     #Y = np.r_[Y, np.conj(Y[-2:0:-1])] if parity else np.r_[Y, np.conj(Y[-1:0:-1])] <-- too slow
@@ -49,7 +49,7 @@ class PhaseVocoder:
         self.last_phase = np.zeros(window_size//2+1)
         self.accum_phase = np.zeros(window_size//2+1)
         self.expected_phase = np.linspace(0, window_size//2, window_size//2+1)*2*np.pi*self.analysis_hopsize//window_size  # expected phase
-        self.pk_indices = range(2049)
+        self.pk_indices = range(window_size//2)
     def calc_phase(self, current_frame):
         """Saves previous phase values for calculation of next frame"""
         current_phase = np.angle(current_frame)
@@ -70,7 +70,7 @@ class PhaseVocoder:
             self.accum_phase[ri_indices] = rotation_angle[k] + current_phase[ri_indices]
         ri_indices = range(end_point[-1], self.pk_indices[-1]) if len(end_point)>0 else []
         self.accum_phase[ri_indices] = rotation_angle[len(self.pk_indices)-1] + current_phase[ri_indices]
-        self.pk_indices, _ = find_peaks(current_magn)
+        self.pk_indices, _ = find_peaks(current_magn, prominence=0)
         if len(self.pk_indices) == 0: self.pk_indices = [1]
         return current_magn*np.exp(1j*self.accum_phase)
     def update(self, pitch_ratio):

@@ -2,14 +2,127 @@ import pyaudio
 import numpy as np
 from utils import dft_rescale, build_dft_rescale_lookup, PhaseVocoder
 import librosa
+import time
 
 
+input_wav = './Red.mp3'
+class PitchShifter:
+    def __init__(self, input_wav, shift_factor):
+        "Must re-initialize whenever loading a new song"
+        self.shift_factor = shift_factor
+        self.signal, self.samp_freq = librosa.load(input_wav, sr=None, mono=True)
+        #derived parameters
+        self.GRAIN_LEN_SAMP = 4096
+        self.STRIDE = 1024
+        self.OVERLAP_LEN = self.GRAIN_LEN_SAMP-self.STRIDE
+        self.N_BINS = self.GRAIN_LEN_SAMP// 2 + 1
+        self.DURATION = round( len(self.signal) / self.samp_freq , 3)
+        self.input_buffer = np.zeros(self.STRIDE, dtype=np.float32)
+        self.output_buffer= np.zeros(self.STRIDE, dtype=np.float32)
+        self.WIN = np.hanning(self.GRAIN_LEN_SAMP)
+        self.SHIFT_IDX, self.MAX_BIN = build_dft_rescale_lookup(self.N_BINS, shift_factor)
+        self.x_prev = np.zeros(self.OVERLAP_LEN).astype(np.float32)
+        self.prev_grain = np.zeros(self.OVERLAP_LEN).astype(np.float32)
+        self.input_concat = np.zeros(self.GRAIN_LEN_SAMP).astype(np.float32)
+        self.grain = np.zeros(self.GRAIN_LEN_SAMP).astype(np.float32)
+        self.phase_vocoder = PhaseVocoder(self.GRAIN_LEN_SAMP, shift_factor)
+        self.count=0
+        self.pitchChanged = False
+        self.p = pyaudio.PyAudio()
+        self.stream=self.p.open(format = pyaudio.paFloat32,
+                        channels=1,
+                        rate=self.samp_freq,
+                        output=True,
+                        frames_per_buffer=self.STRIDE,
+                        start=False,
+                        stream_callback=self.callback)
 
+    def process(self, input_buffer, output_buffer, buffer_len):
+        """Called every stride/hop in the callback function """
+        self.input_concat[:self.OVERLAP_LEN], self.input_concat[self.OVERLAP_LEN:] = self.x_prev[:self.OVERLAP_LEN], input_buffer
+        self.grain, self.phase_vocoder = dft_rescale(self.input_concat*self.WIN, self.N_BINS, self.SHIFT_IDX, self.MAX_BIN, self.phase_vocoder)
+        self.grain=self.grain*self.WIN
+        #Overlap-add without loops due to latency constraints
+        self.output_buffer[:self.STRIDE] = self.prev_grain[:self.STRIDE] + self.grain[:self.STRIDE]
+        self.x_prev[:2*self.STRIDE], self.x_prev[2*self.STRIDE:] =  self.x_prev[self.STRIDE:], input_buffer
+        self.prev_grain[:2*self.STRIDE], self.prev_grain[2*self.STRIDE:] = self.prev_grain[self.STRIDE:], self.grain[-self.STRIDE:]
+        self.prev_grain[:2*self.STRIDE] +=  self.grain[self.STRIDE:self.OVERLAP_LEN]
+
+    def callback(self, in_data, frame_count, time_info, status):
+        """Moves the audio forward using the count pointer --> Called when self.stream.is_active()"""
+        if self.pitchChanged:
+            self.phase_vocoder.update(self.shift_factor)
+            self.pitchChanged=False
+            self.SHIFT_IDX, self.MAX_BIN = build_dft_rescale_lookup(self.N_BINS, self.shift_factor)
+        start_idx, end_idx = frame_count*self.count, frame_count*(self.count+1)
+        input_buffer = self.signal[start_idx:end_idx]
+        self.process(input_buffer, self.output_buffer, self.STRIDE)
+        ret_data = self.output_buffer.tobytes()
+        self.count+=1
+        return (ret_data, pyaudio.paContinue)
+
+    def play(self):
+        """Starts the stream"""
+        self.stream.start_stream()
+
+    def pause(self):
+        """Pauses the stream"""
+        self.stream.stop_stream()
+
+    def getPitch(self):
+        """Returns pitch scale ratio --> One semitone up is a multiplication by 2^(1/12) """
+        return self.shift_factor
+
+    def setPitch(self, shift_factor):
+        """Sets pitch scale ratio --> One semitone up is a multiplication by 2^(1/12) """
+        
+        assert shift_factor > -3 and shift_factor <3, "Pitch must be bounded between 2 octaves"
+        self.pitchChanged = True if shift_factor != self.shift_factor else False
+        self.shift_factor = shift_factor
+
+    def getTime(self):
+        """Returns position of song in seconds """
+        return self.count * self.STRIDE / self.samp_freq
+
+    def setTime(self, seconds):
+        """Sets song with seconds as input parameter """
+        assert seconds > 0 and seconds < self.DURATION, "Choose a valid duration within the boundaries of song"
+        self.count = int( seconds * self.samp_freq / self.STRIDE )
+
+
+audio = PitchShifter(input_wav, 2**(0/12))
+audio.play()
+import readchar
+from math import log2
+while(True):
+    key = readchar.readkey()
+    if key == 'p':
+        audio.stream.stop_stream() if audio.stream.is_active() else audio.stream.start_stream()
+    elif key == '\x1b[C':       #Right arrow key -- increment current pitch by one semi-tone
+        audio.setPitch( audio.getPitch() * (2**(1/12) ))
+        print(int(log2(audio.getPitch())*12))
+    elif key == '\x1b[D':       #Left arrow key -- decrement current pitch by one semi-tone
+        audio.setPitch( audio.getPitch() * (2**(-1/12) ))
+        print(int(log2(audio.getPitch())*12))
+    elif key == 's':
+        audio.stream.stop_stream()
+        break
+    elif key == '\x1b[A':       #Up arrow key
+        audio.count+=45
+    elif key == '\x1b[B':       #Down arrow key
+        audio.count-=45
+    elif key == 't':
+        print(audio.getTime(), 'seconds')
+    elif key == '3':
+        audio.setTime(30)
+        print(audio.getTime(), 'set to 30 seconds')
+
+"""
 input_wav = './Red.mp3'
 shift_factor = 2**(0/12) #start at regular pitch
 
 signal, samp_freq = librosa.load(input_wav, sr=None, mono=True)
-data_type = signal.dtype
+
 
 # derived parameters
 GRAIN_LEN_SAMP = 4096
@@ -18,10 +131,11 @@ OVERLAP_LEN = GRAIN_LEN_SAMP-STRIDE
 LARGER_STRIDE = STRIDE > OVERLAP_LEN
 even = (GRAIN_LEN_SAMP % 2 == 0)
 N_BINS = GRAIN_LEN_SAMP// 2 + 1 if even else (GRAIN_LEN_SAMP + 1) // 2
+DURATION = round( len(signal) / samp_freq , 3)
 
 # allocate input and output buffers
-input_buffer = np.zeros(STRIDE, dtype=data_type)
-output_buffer = np.zeros(STRIDE, dtype=data_type)
+input_buffer = np.zeros(STRIDE, dtype=np.float32)
+output_buffer = np.zeros(STRIDE, dtype=np.float32)
 
 # state variables and constants
 def init():
@@ -110,3 +224,5 @@ while(True):
         count+=45
     elif key == '\x1b[B':       #Down arrow key
         count-=45
+
+"""
