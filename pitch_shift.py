@@ -5,7 +5,6 @@ import librosa
 import time
 
 
-input_wav = './Red.mp3'
 class PitchShifter:
     def __init__(self, input_wav, shift_factor):
         "Must re-initialize whenever loading a new song"
@@ -28,6 +27,7 @@ class PitchShifter:
         self.phase_vocoder = PhaseVocoder(self.GRAIN_LEN_SAMP, shift_factor)
         self.count=0
         self.pitchChanged = False
+        self.Finish = False
         self.p = pyaudio.PyAudio()
         self.stream=self.p.open(format = pyaudio.paFloat32,
                         channels=1,
@@ -56,6 +56,9 @@ class PitchShifter:
             self.SHIFT_IDX, self.MAX_BIN = build_dft_rescale_lookup(self.N_BINS, self.shift_factor)
         start_idx, end_idx = frame_count*self.count, frame_count*(self.count+1)
         input_buffer = self.signal[start_idx:end_idx]
+        if len(input_buffer) < frame_count:
+            self.Finish = True
+            return (in_data, pyaudio.paComplete)
         self.process(input_buffer, self.output_buffer, self.STRIDE)
         ret_data = self.output_buffer.tobytes()
         self.count+=1
@@ -75,9 +78,9 @@ class PitchShifter:
 
     def setPitch(self, shift_factor):
         """Sets pitch scale ratio --> One semitone up is a multiplication by 2^(1/12) """
-        
+
         assert shift_factor > -3 and shift_factor <3, "Pitch must be bounded between 2 octaves"
-        self.pitchChanged = True if shift_factor != self.shift_factor else False
+        self.pitchChanged = True 
         self.shift_factor = shift_factor
 
     def getTime(self):
@@ -89,33 +92,40 @@ class PitchShifter:
         assert seconds > 0 and seconds < self.DURATION, "Choose a valid duration within the boundaries of song"
         self.count = int( seconds * self.samp_freq / self.STRIDE )
 
-
-audio = PitchShifter(input_wav, 2**(0/12))
-audio.play()
-import readchar
-from math import log2
-while(True):
-    key = readchar.readkey()
-    if key == 'p':
-        audio.stream.stop_stream() if audio.stream.is_active() else audio.stream.start_stream()
-    elif key == '\x1b[C':       #Right arrow key -- increment current pitch by one semi-tone
-        audio.setPitch( audio.getPitch() * (2**(1/12) ))
-        print(int(log2(audio.getPitch())*12))
-    elif key == '\x1b[D':       #Left arrow key -- decrement current pitch by one semi-tone
-        audio.setPitch( audio.getPitch() * (2**(-1/12) ))
-        print(int(log2(audio.getPitch())*12))
-    elif key == 's':
-        audio.stream.stop_stream()
-        break
-    elif key == '\x1b[A':       #Up arrow key
-        audio.count+=45
-    elif key == '\x1b[B':       #Down arrow key
-        audio.count-=45
-    elif key == 't':
-        print(audio.getTime(), 'seconds')
-    elif key == '3':
-        audio.setTime(30)
-        print(audio.getTime(), 'set to 30 seconds')
+if __name__ == '__main__': #testing
+    input_wav = './Red.mp3'
+    audio = PitchShifter(input_wav, 2**(0/12))
+    audio.play()
+    import readchar
+    from math import log2
+    while(True):
+        key = readchar.readkey()
+        if key == 'p':
+            audio.stream.stop_stream() if audio.stream.is_active() else audio.stream.start_stream()
+        elif key == '\x1b[C':       #Right arrow key -- increment current pitch by one semi-tone
+            audio.setPitch( audio.getPitch() * (2**(1/12) ))
+            print(int(log2(audio.getPitch())*12))
+        elif key == '\x1b[D':       #Left arrow key -- decrement current pitch by one semi-tone
+            audio.setPitch( audio.getPitch() * (2**(-1/12) ))
+            print(int(log2(audio.getPitch())*12))
+        elif key == 's':
+            audio.stream.stop_stream()
+            break
+        elif key == '\x1b[A':       #Up arrow key
+            audio.count+=45
+        elif key == '\x1b[B':       #Down arrow key
+            audio.count-=45
+        elif key == 't':
+            print(audio.getTime(), 'seconds')
+        elif key == '3':
+            audio.setTime(239)
+            print(audio.getTime(), 'set to 239 seconds')
+        elif key == 'f':
+            print(audio.didFinish())
+        elif key == 'l':
+            audio.pause()
+            audio = PitchShifter('Kanye.mp3', 2**(0/12))
+            audio.play()
 
 """
 input_wav = './Red.mp3'
