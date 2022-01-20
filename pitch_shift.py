@@ -80,7 +80,7 @@ class PitchShifter:
         """Sets pitch scale ratio --> One semitone up is a multiplication by 2^(1/12) """
 
         assert shift_factor > -3 and shift_factor <3, "Pitch must be bounded between 2 octaves"
-        self.pitchChanged = True 
+        self.pitchChanged = True
         self.shift_factor = shift_factor
 
     def getTime(self):
@@ -91,6 +91,9 @@ class PitchShifter:
         """Sets song with seconds as input parameter """
         assert seconds > 0 and seconds < self.DURATION, "Choose a valid duration within the boundaries of song"
         self.count = int( seconds * self.samp_freq / self.STRIDE )
+
+    def getData(self):
+        return self.output_buffer
 
 if __name__ == '__main__': #testing
     input_wav = './Red.mp3'
