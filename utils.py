@@ -13,7 +13,7 @@ def build_dft_rescale_lookup(n_bins, shift_factor):
     shift_idx = np.zeros(n_bins, dtype=np.int16)
     max_bin = n_bins
     for k in range(n_bins):
-        ix = int(k * shift_factor)
+        ix = floor(k * shift_factor + 0.5)
         if ix<n_bins:
             shift_idx[k] = ix
         else:
@@ -70,7 +70,7 @@ class PhaseVocoder:
             self.accum_phase[ri_indices] = rotation_angle[k] + current_phase[ri_indices]
         ri_indices = range(end_point[-1], self.pk_indices[-1]) if len(end_point)>0 else []
         self.accum_phase[ri_indices] = rotation_angle[len(self.pk_indices)-1] + current_phase[ri_indices]
-        self.pk_indices, _ = find_peaks(current_magn, prominence=0)
+        self.pk_indices, _ = find_peaks(current_magn)
         if len(self.pk_indices) == 0: self.pk_indices = [1]
         return current_magn*np.exp(1j*self.accum_phase)
     def update(self, pitch_ratio):

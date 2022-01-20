@@ -9,6 +9,7 @@ from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
 NavigationToolbar2Tk)
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 # App Database
@@ -163,12 +164,12 @@ def volume(event):
 if __name__ == '__main__':
     root = Tk()
     root.config(bg="light blue")
-    root.geometry("600x700")
+    root.geometry("600x800")
 
     master_frame = Frame(root, bg="light blue")
     master_frame.pack(pady=20, padx=(30,0))
     ctrl_frame = Frame(root, width=60, bg="blue")
-    ctrl_frame.place(relx=.5, rely=.5, anchor="center", x=-10, y=80)
+    ctrl_frame.place(relx=.5, rely=.5, anchor="center", x=-10, y=0)
 
 
     volume_frame = LabelFrame(master_frame, text="Volume", bg="grey")
@@ -188,7 +189,7 @@ if __name__ == '__main__':
     forward_btn = Button(ctrl_frame, image=forward_btn_img, borderwidth = 0, bg = "grey", activebackground = "grey", command=forward)
     play_btn = Button(ctrl_frame, image=play_btn_img, borderwidth = 0, bg = "grey", activebackground = "grey", command=play)
     pause_btn = Button(ctrl_frame, image=pause_btn_img, borderwidth = 0, bg = "grey", activebackground = "grey", command=pause)
-    #stop_btn = Button(ctrl_frame, image=stop_btn_img, borderwidth = 0, bg = "grey", activebackground = "grey", command=stop)
+
     paused = True
     loaded = False
 
@@ -196,7 +197,7 @@ if __name__ == '__main__':
     forward_btn.grid(row=1, column=4, pady=(20,0))
     play_btn.grid(row=1, column=2, pady=(20,0))
     pause_btn.grid(row=1, column=1, pady=(20,0))
-    #stop_btn.grid(row=1, column=3, pady=(20,0))
+
 
 
     my_menu = Menu(root)
@@ -229,10 +230,6 @@ if __name__ == '__main__':
     music_slider.grid(row=4, column=0, pady=(30,10), columnspan = 2)
     music_slider.config(value=0)
 
-    # Create Volume Slider
-    volume_slider = ttk.Scale(volume_frame, from_=0, to=1, orient=VERTICAL, value=0, command=volume, length = 111)
-    volume_slider.pack(pady=(10, 4))
-    volume_slider.config(value=1)
 
     label_title = StringVar()
     label_title.set('My Sick Playlist')
@@ -240,27 +237,24 @@ if __name__ == '__main__':
     info_label.grid(row=0, column=1, sticky=W)
 
 
-    fig = Figure(figsize = (5, 2),
+    fig = Figure(figsize = (5.5, 3.5),
                      dpi = 100)
     canvas = FigureCanvasTkAgg(fig, master = root)
-    canvas.draw()
     canvas.get_tk_widget().place(relx=.5, rely=.5, anchor="center", x=-10, y=220)
-    ax = fig.add_subplot(111)
+    ax = fig.add_subplot(211)
     line, = ax.plot(range(1024), [0 for i in range(1024)])
     ax.set_ylim([-2,2])
-
+    ax2 = fig.add_subplot(212)
+    line2, = ax2.plot( np.fft.rfftfreq(1024, 1/48000) , [0 for i in range(513)], color="red") #np.linspace(0, 48000/2, 1024/2 + 1)
+    ax2.set_ylim([0, 75])
 
     def plot(i):
-       global fig, plot
+       global line
        if not paused:
-            #ax.magnitude_spectrum(audio.getData(), 48000)
-            line.set_ydata(audio.getData())
-            #canvas.draw()
-            #canvas.flush_events()
+            line.set_ydata( audio.getData() )
+            line2.set_ydata( audio.getAmpSpectrum() )
             plt.show(block=False)
-
     ani = animation.FuncAnimation(fig, plot, interval=100, blit=False)
-    plt.show(block=False)
 
 
     display_songs()

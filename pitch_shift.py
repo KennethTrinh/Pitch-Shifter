@@ -43,10 +43,11 @@ class PitchShifter:
         self.grain, self.phase_vocoder = dft_rescale(self.input_concat*self.WIN, self.N_BINS, self.SHIFT_IDX, self.MAX_BIN, self.phase_vocoder)
         self.grain=self.grain*self.WIN
         #Overlap-add without loops due to latency constraints
+        update = self.OVERLAP_LEN - self.STRIDE
         self.output_buffer[:self.STRIDE] = self.prev_grain[:self.STRIDE] + self.grain[:self.STRIDE]
-        self.x_prev[:2*self.STRIDE], self.x_prev[2*self.STRIDE:] =  self.x_prev[self.STRIDE:], input_buffer
-        self.prev_grain[:2*self.STRIDE], self.prev_grain[2*self.STRIDE:] = self.prev_grain[self.STRIDE:], self.grain[-self.STRIDE:]
-        self.prev_grain[:2*self.STRIDE] +=  self.grain[self.STRIDE:self.OVERLAP_LEN]
+        self.x_prev[:update], self.x_prev[update:] =  self.x_prev[self.STRIDE:], input_buffer
+        self.prev_grain[:update], self.prev_grain[update:] = self.prev_grain[self.STRIDE:], self.grain[-self.STRIDE:]
+        self.prev_grain[:update] +=  self.grain[self.STRIDE:self.OVERLAP_LEN]
 
     def callback(self, in_data, frame_count, time_info, status):
         """Moves the audio forward using the count pointer --> Called when self.stream.is_active()"""
@@ -93,7 +94,12 @@ class PitchShifter:
         self.count = int( seconds * self.samp_freq / self.STRIDE )
 
     def getData(self):
+        """Returns raw wave data """
         return self.output_buffer
+
+    def getAmpSpectrum(self):
+        """Returns amplitudes of real FFT """
+        return np.abs( np.fft.rfft(self.output_buffer) )
 
 if __name__ == '__main__': #testing
     input_wav = './Red.mp3'
