@@ -96,14 +96,37 @@ class PhaseVocoder:
         delta_phase = np.unwrap(current_phase - self.last_phase - self.expected_phase)
         phase_derivative = self.expected_phase + delta_phase
         frequency_derivative = np.append(self.last_phase[1:] - self.last_phase[-1], 0)
-        self.accum_phase += phase_derivative*(self.synthesis_hopsize/self.analysis_hopsize)
-        #self.last_phase = current_phase.copy()
-        #self.last_magnitudes = current_magn.copy()
+        #self.accum_phase += phase_derivative*(self.synthesis_hopsize/self.analysis_hopsize) #phi(k, n+1)
+        self.Gradient_Heap(current_magn, phase_derivative, frequency_derivative)
+        self.last_phase = current_phase.copy()
+        self.last_magnitudes = current_magn.copy()
         return current_magn*np.exp(1j*self.accum_phase)
     def update(self, pitch_ratio):
         """ Called when pitch is changed """
         self.analysis_hopsize = int(self.synthesis_hopsize//pitch_ratio)
         self.expected_phase = np.linspace(0, self.window_size//2, self.window_size//2+1)*2*np.pi*self.analysis_hopsize//self.window_size
-    def Gradient_Heap(self, current_magn, frequency_derivative, ):
-        heap_data = list( zip(current_magn * -1, range(len(current_magn)), np.zeros(len(current_magn))) )
-        heapq.heapify(heap_data)
+    def Gradient_Heap(self, current_magn, phase_derivative, frequency_derivative, threshold=0.005):
+        """Implementation gradient propagation algorithm - Makes all magnitudes negative for Max heap """
+        threshold = threshold* max( current_magn.max(), self.last_magnitudes.max() )
+        print(threshold)
+        previous_indices = np.where( self.last_magnitudes > threshold )[0]
+        heap = list( zip(self.last_magnitudes[previous_indices] * -1, previous_indices, np.zeros(previous_indices.shape[0]) ) )
+        heapq.heapify(heap) # initialize with all elements from frame n - 1
+        current_indices = np.where( current_magn > threshold )[0]
+        I = set( zip( current_indices, np.ones(current_indices.shape[0]) ) ) #visited
+        while I and heap:
+            G, k, n = heapq.heappop(heap)
+            if n == 0:
+                if (k, n+1) in I:
+                    self.accum_phase[k] = self.accum_phase[k] +  phase_derivative[k]*(self.synthesis_hopsize/self.analysis_hopsize)
+                    I.remove( (k, n+1) )
+                    heapq.heappush( heap, (-current_magn[k], k , n+1) )
+            if n == 1:
+                if (k+1, n) in I:
+                    self.accum_phase[k + 1] = self.accum_phase[k] + frequency_derivative[k + 1]*(self.synthesis_hopsize/self.analysis_hopsize)
+                    I.remove( (k+1, n) )
+                    heapq.heappush( heap, (-current_magn[k+1], k+1 , n) )
+                if (k-1, n) in I:
+                    self.accum_phase[k - 1] = self.accum_phase[k] + frequency_derivative[k - 1]*(self.synthesis_hopsize/self.analysis_hopsize)
+                    I.remove( (k-1, n) )
+                    heapq.heappush( heap, (-current_magn[k-1], k-1 , n) )
