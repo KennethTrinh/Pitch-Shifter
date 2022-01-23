@@ -7,6 +7,10 @@ Tkinter GUI:
 
 <img width="578" alt="Screen Shot 2022-01-23 at 4 05 58 PM" src="https://user-images.githubusercontent.com/69221376/150697996-267fdfbd-f8cc-44ee-8d59-bf6636fd4b58.png">
 
+# Dependencies 
+```
+pip install -r requirements.txt 
+```
 
 
 # References
