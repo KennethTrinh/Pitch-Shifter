@@ -41,7 +41,7 @@ class PitchShifter:
         """Called every stride/hop in the callback function """
         self.input_concat[:self.OVERLAP_LEN], self.input_concat[self.OVERLAP_LEN:] = self.x_prev[:self.OVERLAP_LEN], input_buffer
         self.grain, self.phase_vocoder = dft_rescale(self.input_concat*self.WIN, self.N_BINS, self.SHIFT_IDX, self.MAX_BIN, self.phase_vocoder)
-        self.grain=self.grain*self.WIN
+        self.grain*=self.WIN
         #Overlap-add without loops due to latency constraints
         update = self.OVERLAP_LEN - self.STRIDE
         self.output_buffer[:self.STRIDE] = self.prev_grain[:self.STRIDE] + self.grain[:self.STRIDE]

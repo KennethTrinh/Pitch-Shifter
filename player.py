@@ -20,24 +20,28 @@ songs_main_dir = '/Users/kennethtrinh/Desktop/pitchshift/'
 
 
 def add_song():
-    global song_box
-    song = filedialog.askopenfilename(initialdir=songs_main_dir, title="Choose A Song", filetypes=(("mp3 Files", "*.mp3"), ("wav Files", "*.wav")))
+    global song_box, loaded, previous_pitch
+    songs = filedialog.askopenfilenames(initialdir=songs_main_dir, title="Choose Songs", filetypes=(("mp3 Files", "*.mp3"), ("wav Files", "*.wav")))
     # Getting the path of the .mp3 file
-    song_dir = song.split("/")
-    song_dir.pop(len(song_dir)-1)
-    song_file = song_dir[0]
-    song_dir.pop(0)
-    for elem in song_dir:
-        song_file = song_file + "/" + elem
-    song_file = song_file + "/"
-    # Saving path of the .mp3 file in the path List
-    # Strip out the directory info and .mp3 extension from the song name
-    song = song.replace(song_file, "").replace(".mp3", "")
-    # Add song to list box
-    if playlists_record.add_to_music(song, song_file) == -1:
-        print('cannot add song, choose different name')
-        return
-    song_box.insert(END, song)
+    if song_box.size() == 0:
+        loaded = False
+        previous_pitch = 2**(0/12)
+    for song in songs:
+        song_dir = song.split("/")
+        song_dir.pop(len(song_dir)-1)
+        song_file = song_dir[0]
+        song_dir.pop(0)
+        for elem in song_dir:
+            song_file = song_file + "/" + elem
+        song_file = song_file + "/"
+        # Saving path of the .mp3 file in the path List
+        # Strip out the directory info and .mp3 extension from the song name
+        song = song.replace(song_file, "").replace(".mp3", "")
+        # Add song to list box
+        if playlists_record.add_to_music(song, song_file) == -1:
+            print('cannot add song, choose different name')
+            return
+        song_box.insert(END, song)
 
 
 def delete_song():
@@ -46,9 +50,10 @@ def delete_song():
     stop()
     song_idx = song_box.index(ACTIVE)
     song = song_box.get(ACTIVE)
+    new_idx = (song_idx-1) % song_box.size()
+    song_box.activate(new_idx)
+    song_box.selection_set(new_idx)
     song_box.delete(song_idx)
-    song_box.activate(song_idx-1 )
-    song_box.selection_set(song_idx-1, last=None)
     playlists_record.del_from_music(song)
 def display_songs():
     global song_box, previous_pitch
@@ -100,10 +105,13 @@ def forward():
 
 
 def play():
-    global paused, loaded, audio, song, music_slider
+    global paused, loaded, audio, song, music_slider, previous_pitch
     if (not loaded) or (song != song_box.get(ACTIVE) ): #if it hasn't been loaded or the song changed
         stop()
         song = song_box.get(ACTIVE)
+        if not song:
+            print('Load a song')
+            return
         song_index = song_box.index(ACTIVE)
         song_path = f'{playlists_record.get_directory(song)}{song}.mp3'
         loaded = True
@@ -163,19 +171,19 @@ def volume(event):
 
 if __name__ == '__main__':
     root = Tk()
-    root.config(bg="light blue")
+    root.config(bg="pink")
     root.geometry("600x800")
 
-    master_frame = Frame(root, bg="light blue")
+    master_frame = Frame(root, bg="pink")
     master_frame.pack(pady=20, padx=(30,0))
-    ctrl_frame = Frame(root, width=60, bg="blue")
+    ctrl_frame = Frame(root, width=60, bg="purple")
     ctrl_frame.place(relx=.5, rely=.5, anchor="center", x=-10, y=0)
 
 
     volume_frame = LabelFrame(master_frame, text="Volume", bg="grey")
     volume_frame.grid(row=1, column=2, padx=(20,0))
 
-    song_box = Listbox(master_frame, bg = "black", fg="blue", width=50, selectbackground="white", selectforeground="black")
+    song_box = Listbox(master_frame, bg = "aqua", fg="purple", width=50, selectbackground="pink", selectforeground="hot pink")
     song_box.grid(row=1, column=0, columnspan = 2)
 
 
@@ -185,10 +193,10 @@ if __name__ == '__main__':
     pause_btn_img = PhotoImage(file='./images/pause.png')
     stop_btn_img = PhotoImage(file='./images/stop.png')
     return_btn_img = PhotoImage(file='./images/back_arrow.png')
-    back_btn = Button(ctrl_frame, image=back_btn_img, borderwidth = 0, bg = "grey", activebackground = "grey", command=back)
-    forward_btn = Button(ctrl_frame, image=forward_btn_img, borderwidth = 0, bg = "grey", activebackground = "grey", command=forward)
-    play_btn = Button(ctrl_frame, image=play_btn_img, borderwidth = 0, bg = "grey", activebackground = "grey", command=play)
-    pause_btn = Button(ctrl_frame, image=pause_btn_img, borderwidth = 0, bg = "grey", activebackground = "grey", command=pause)
+    back_btn = Button(ctrl_frame, image=back_btn_img, borderwidth = 0, activebackground = "purple", command=back)
+    forward_btn = Button(ctrl_frame, image=forward_btn_img, borderwidth = 0, activebackground = "purple", command=forward)
+    play_btn = Button(ctrl_frame, image=play_btn_img, borderwidth = 0, activebackground = "purple", command=play)
+    pause_btn = Button(ctrl_frame, image=pause_btn_img, borderwidth = 0, activebackground = "purple", command=pause)
 
     paused = True
     loaded = False
@@ -204,7 +212,7 @@ if __name__ == '__main__':
     root.config(menu=my_menu)
     add_song_menu = Menu(my_menu, tearoff=0)
     my_menu.add_cascade(label = "Add Songs", menu=add_song_menu)
-    add_song_menu.add_command(label="Add One Song To Menu", command=add_song)
+    add_song_menu.add_command(label="Add Song(s) To Menu", command=add_song)
 
     remove_song_menu = Menu(my_menu, tearoff=0)
     my_menu.add_cascade(label="Remove Songs", menu = remove_song_menu)
@@ -233,7 +241,7 @@ if __name__ == '__main__':
 
     label_title = StringVar()
     label_title.set('My Sick Playlist')
-    info_label = Label(master_frame, textvariable=label_title, bg="grey")
+    info_label = Label(master_frame, textvariable=label_title, bg="purple")
     info_label.grid(row=0, column=1, sticky=W)
 
 
@@ -254,7 +262,7 @@ if __name__ == '__main__':
             line.set_ydata( audio.getData() )
             line2.set_ydata( audio.getAmpSpectrum() )
             plt.show(block=False)
-    ani = animation.FuncAnimation(fig, plot, interval=100, blit=False)
+    ani = animation.FuncAnimation(fig, plot, interval=50, blit=False)
 
 
     display_songs()

@@ -82,10 +82,10 @@ def dft_rescale(x, n_bins, shift_idx, max_bin, phase_vocoder):
 class PhaseVocoder:
     """Vectorized implementation of phase vocoder with peak detection --> no idea what I'm doing """
     def __init__(self, window_size, pitch_ratio):
+        self.pitch_ratio = pitch_ratio
         self.window_size = window_size
         self.synthesis_hopsize = window_size//4
         self.analysis_hopsize = int(self.synthesis_hopsize//pitch_ratio)
-        self.alpha = self.synthesis_hopsize/self.analysis_hopsize
         self.HALF_FFT = window_size//2+1
         self.last_phase = np.zeros(self.HALF_FFT) #frame n − 1
         self.accum_phase = np.zeros(self.HALF_FFT)
@@ -98,7 +98,7 @@ class PhaseVocoder:
         current_magn = abs(current_frame)
         delta_phase = np.unwrap(current_phase - self.last_phase - self.expected_phase)
         phase_derivative = self.expected_phase + delta_phase
-        frequency_derivative = np.unwrap( np.r_[0, (current_phase[1:] - current_phase[:-1])] )
+        frequency_derivative = (np.r_[current_phase[0] - self.last_phase[-1], (current_phase[1:] - current_phase[:-1])] )
         #self.accum_phase += phase_derivative*(self.synthesis_hopsize/self.analysis_hopsize) #phi(k, n+1)
         self.Gradient_Heap(current_magn, phase_derivative, frequency_derivative)
         self.last_accum_phase = self.accum_phase.copy()
@@ -107,11 +107,13 @@ class PhaseVocoder:
         return current_magn*np.exp(1j*self.accum_phase)
     def update(self, pitch_ratio):
         """ Called when pitch is changed """
+        self.pitch_ratio = pitch_ratio
         self.analysis_hopsize = int(self.synthesis_hopsize//pitch_ratio)
         self.expected_phase = np.linspace(0, self.window_size//2, self.HALF_FFT)*2*np.pi*self.analysis_hopsize//self.window_size
-        self.alpha = self.synthesis_hopsize/self.analysis_hopsize
-    def Gradient_Heap(self, current_magn, phase_derivative, frequency_derivative, threshold=0.5):
-        """Implementation gradient propagation algorithm - Makes all magnitudes negative for Max heap """
+    def Gradient_Heap(self, current_magn, phase_derivative, frequency_derivative, threshold=0.2):
+        """Implementation gradient propagation algorithm - Makes all magnitudes negative for Max heap.
+        Lower threshold = better audio quality but slower performance
+        (0 threshold  not fast enough to stream at 128kbps)"""
         #threshold = threshold* max( current_magn.max(), self.last_magnitudes.max() )
         heap = []
         I = set()
@@ -129,15 +131,15 @@ class PhaseVocoder:
             G, k, n = heapq.heappop(heap)
             if n == 0:
                 if (k, n+1) in I:
-                    self.accum_phase[k] = self.last_accum_phase[k] + phase_derivative[k] * self.alpha
+                    self.accum_phase[k] = self.last_accum_phase[k] + phase_derivative[k] * self.pitch_ratio
                     I.remove( (k, n+1) )
                     heapq.heappush( heap, (-current_magn[k], k , n+1) )
             if n == 1:
                 if (k+1, n) in I:
-                    self.accum_phase[k + 1] = self.accum_phase[k] +  frequency_derivative[k + 1] * self.alpha
+                    self.accum_phase[k + 1] = self.accum_phase[k] +  frequency_derivative[k + 1] * self.pitch_ratio
                     I.remove( (k+1, n) )
                     heapq.heappush( heap, (-current_magn[k+1], k+1 , n) )
                 if (k-1, n) in I:
-                    self.accum_phase[k - 1] = self.accum_phase[k] +  frequency_derivative[k - 1] * self.alpha
+                    self.accum_phase[k - 1] = self.accum_phase[k] +  frequency_derivative[k - 1] * self.pitch_ratio
                     I.remove( (k-1, n) )
                     heapq.heappush( heap, (-current_magn[k-1], k-1 , n) )
