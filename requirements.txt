@@ -1,0 +1,6 @@
+tk>=0.1.0
+PyAudio>=0.2.11
+librosa>=0.8.1
+matplotlib>=3.3.4
+scipy>=1.7.1
+numpy>=1.19.5
