@@ -90,7 +90,7 @@ class PitchShifter:
 
     def setTime(self, seconds):
         """Sets song with seconds as input parameter """
-        assert seconds > 0 and seconds < self.DURATION, "Choose a valid duration within the boundaries of song"
+        assert seconds >= 0 and seconds < self.DURATION, "Choose a valid duration within the boundaries of song"
         self.count = int( seconds * self.samp_freq / self.STRIDE )
 
     def getData(self):
