@@ -1,6 +1,6 @@
 import pyaudio
 import numpy as np
-from utils import dft_rescale, build_dft_rescale_lookup, PhaseVocoder
+from utils import dft_rescale, build_dft_rescale_lookup, PhaseVocoder, PhaseVocoder2
 import librosa
 import time
 
@@ -102,7 +102,7 @@ class PitchShifter:
         return np.abs( np.fft.rfft(self.output_buffer) )
 
 if __name__ == '__main__': #testing
-    input_wav = './Red.mp3'
+    input_wav = './songs/Red.mp3'
     audio = PitchShifter(input_wav, 2**(0/12))
     audio.play()
     import readchar

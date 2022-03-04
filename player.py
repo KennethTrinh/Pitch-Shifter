@@ -15,7 +15,7 @@ import numpy as np
 # App Database
 playlists_record = database.Database()
 # Directory to get musics from
-songs_main_dir = '/Users/kennethtrinh/Desktop/pitchshift/'
+songs_main_dir = '/Users/kennethtrinh/Desktop/pitchshift/songs'
 
 
 
@@ -262,7 +262,7 @@ if __name__ == '__main__':
             line.set_ydata( audio.getData() )
             line2.set_ydata( audio.getAmpSpectrum() )
             plt.show(block=False)
-    ani = animation.FuncAnimation(fig, plot, interval=50, blit=False)
+    # ani = animation.FuncAnimation(fig, plot, interval=50, blit=False)
 
 
     display_songs()
